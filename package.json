@@ -1,0 +1,15 @@
+{
+  "scripts": {
+    "telegram:setup": "node scripts/telegram-setup.mjs",
+    "telegram:dialogs": "node scripts/telegram-dialogs.mjs",
+    "telegram:archive": "node scripts/telegram-archive.mjs",
+    "telegram:archive:check": "node scripts/telegram-archive.mjs --check",
+    "telegram:relay": "node scripts/telegram-archive.mjs --send",
+    "telegram:relay:check": "node scripts/telegram-archive.mjs --send --check"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "input": "^1.0.1",
+    "teleproto": "^1.228.5"
+  }
+}
