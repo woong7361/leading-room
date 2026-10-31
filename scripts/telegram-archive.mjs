@@ -2,8 +2,10 @@ import 'dotenv/config';
 import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { TelegramClient } from 'teleproto';
-import { NewMessage } from 'teleproto/events/index.js';
+import { DeletedMessage, NewMessage } from 'teleproto/events/index.js';
 import { StringSession } from 'teleproto/sessions/index.js';
+import { RelayLedger } from './relay-ledger.mjs';
+import { buildSendOptions } from './relay-message.mjs';
 
 const apiId = Number(process.env.TELEGRAM_API_ID);
 const apiHash = process.env.TELEGRAM_API_HASH?.trim();
@@ -100,6 +102,11 @@ try {
 
   await mkdir(dirname(archivePath), { recursive: true });
 
+  const ledger = new RelayLedger(
+    resolve(dirname(archivePath), 'telegram-relay-ledger.ndjson'),
+  );
+  await ledger.load();
+
   const handleNewMessage = (event) => {
     const message = event.message;
     const photoArchivePath = message.photo
@@ -154,13 +161,9 @@ try {
         try {
           const sentMessage = await client.sendMessage(
             targetDialog.inputEntity,
-            {
-              message: record.text,
-              file: photoArchivePath ?? undefined,
-              parseMode: null,
-              linkPreview: false,
-            },
+            buildSendOptions(record.text, photoArchivePath),
           );
+          await ledger.record(message.id, sentMessage.id);
 
           console.log(
             `[전송 완료] sourceMessage=${message.id} targetMessage=${sentMessage.id}`,
@@ -186,6 +189,43 @@ try {
     handleNewMessage,
     new NewMessage({ chats: [sourceChatId] }),
   );
+
+  const handleDeletedMessage = (event) => {
+    storageQueue = storageQueue
+      .then(async () => {
+        for (const sourceMessageId of event.deletedIds) {
+          const targetMessageId = await ledger.release(sourceMessageId);
+
+          if (targetMessageId === undefined) {
+            continue;
+          }
+
+          await client.deleteMessages(
+            targetDialog.inputEntity,
+            [targetMessageId],
+            { revoke: true },
+          );
+          console.log(
+            `[삭제 동기화] sourceMessage=${sourceMessageId} targetMessage=${targetMessageId}`,
+          );
+        }
+      })
+      .catch((error) => {
+        console.error(
+          `[삭제 동기화 실패] messages=${event.deletedIds}`,
+          error.message ?? error,
+        );
+      });
+
+    return storageQueue;
+  };
+
+  if (sendAfterArchive) {
+    client.addEventHandler(
+      handleDeletedMessage,
+      new DeletedMessage({ chats: [sourceChatId] }),
+    );
+  }
 
   console.log(
     `메시지 저장 대기 중: ${sourceDialog.title}(${sourceChatId})`,

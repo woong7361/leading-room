@@ -5,7 +5,8 @@
     "telegram:archive": "node scripts/telegram-archive.mjs",
     "telegram:archive:check": "node scripts/telegram-archive.mjs --check",
     "telegram:relay": "node scripts/telegram-archive.mjs --send",
-    "telegram:relay:check": "node scripts/telegram-archive.mjs --send --check"
+    "telegram:relay:check": "node scripts/telegram-archive.mjs --send --check",
+    "test": "node --test \"scripts/**/*.test.mjs\""
   },
   "dependencies": {
     "dotenv": "^17.4.2",
